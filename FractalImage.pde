@@ -4,7 +4,7 @@ float cutoff = 10f;
 
 ImageTile base_tile;
 ImageTile[] bucket_tiles;
-ArrayList<ImageTile> choice_tiles;
+ArrayList<ImageTile> palette_tiles;
 
 void setup()
 {
@@ -26,18 +26,18 @@ void draw()
   for (ImageTile i : bucket_tiles)
     i.draw();
   
-  for (ImageTile i : choice_tiles)
+  for (ImageTile i : palette_tiles)
     i.draw();
 }
 
 void init()
 {
-  //intialize the choice tiles
-  choice_tiles = new ArrayList<ImageTile>();
+  //intialize the palette tiles
+  palette_tiles = new ArrayList<ImageTile>();
   
   //now load up all the images in the data folder
   File dir = new File(dataPath(""));
-  float max_choice_x = 80f;
+  float max_palette_x = 80f;
   
   for (File f : dir.listFiles())
   {
@@ -47,24 +47,22 @@ void init()
       
       if (p != null)
       {
-        int starting_y_pos_for_choices = 80;
+        int starting_y_pos_for_palettes = 80;
         int onepointfive_tile_size = 3 * tile_size / 2;
         
-        //first determine the position
-        PVector np = new PVector(16f, starting_y_pos_for_choices + choice_tiles.size() * onepointfive_tile_size);
+        //figure out how many can fit in a column
+        int num_per_column = (height - starting_y_pos_for_palettes) / onepointfive_tile_size;
         
-        while (np.y + tile_size >= height)
-        {
-          np.y -= height - starting_y_pos_for_choices;
-          np.x += onepointfive_tile_size;
-        }
-        
-        ImageTile it = new ImageTile(new PVector(16f, 80 + choice_tiles.size() * 48), new PVector(tile_size, tile_size));
+        //determine the position
+        PVector np = new PVector(16 + onepointfive_tile_size * (palette_tiles.size() / num_per_column), starting_y_pos_for_palettes + (palette_tiles.size() % num_per_column) * onepointfive_tile_size);
+
+        //create the entry in the palette tiles
+        ImageTile it = new ImageTile(np, new PVector(tile_size, tile_size));
         it.set_image(p);
         
-        choice_tiles.add(it);
+        palette_tiles.add(it);
       
-        max_choice_x = np.x;
+        max_palette_x = np.x;
       }
     }
   }
@@ -78,7 +76,7 @@ void init()
   //initialize the bucket_tiles
   bucket_tiles = new ImageTile[8];
   for (int i = 0; i < bucket_tiles.length; ++i)
-     bucket_tiles[i] = new ImageTile(new PVector(2 * tile_size + max_choice_x, 80 + i * 48), new PVector(tile_size,tile_size));
+     bucket_tiles[i] = new ImageTile(new PVector(2 * tile_size + max_palette_x, 80 + i * 48), new PVector(tile_size,tile_size));
   
   //now create the default bucket_tiles from scratch
   for (int i = 0; i < bucket_tiles.length; ++i)
@@ -190,7 +188,7 @@ void mousePressed()
   for (ImageTile i : bucket_tiles)
     i.mousePressed(m);
   
-  for (ImageTile i : choice_tiles)
+  for (ImageTile i : palette_tiles)
     i.mousePressed(m);
 }
 
@@ -203,7 +201,7 @@ void mouseReleased()
   for (ImageTile i : bucket_tiles)
     i.mouseReleased(m);
   
-  for (ImageTile i : choice_tiles)
+  for (ImageTile i : palette_tiles)
     i.mouseReleased(m);
   
   //recreate the output image anytime we release the mouse button
