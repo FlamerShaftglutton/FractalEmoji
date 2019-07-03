@@ -1,15 +1,16 @@
 PImage output;
-int image_size = 32;
+int tile_size = 32;
 float cutoff = 10f;
 
-ImagePicker base_picker;
-ImagePicker[] bucket_pickers;
+ImageTile base_tile;
+ImageTile[] bucket_tiles;
+ArrayList<ImageTile> choice_tiles;
 
 void setup()
 {
   size(1600,1200);
   
-  setup_pickers();
+  init();
   
   create_output();
 }
@@ -20,39 +21,88 @@ void draw()
   
   image(output, width - output.width, 0f);
   
-  base_picker.draw();
+  base_tile.draw();
   
-  for (ImagePicker i : bucket_pickers)
+  for (ImageTile i : bucket_tiles)
+    i.draw();
+  
+  for (ImageTile i : choice_tiles)
     i.draw();
 }
 
-void setup_pickers()
+void init()
 {
-  base_picker = new ImagePicker(new PVector(16f, 16f), new PVector(image_size,image_size));
-  bucket_pickers = new ImagePicker[8];
-  for (int i = 0; i < bucket_pickers.length; ++i)
-     bucket_pickers[i] = new ImagePicker(new PVector(16f, 80 + i * 48), new PVector(image_size,image_size));
+  //intialize the choice tiles
+  choice_tiles = new ArrayList<ImageTile>();
   
-  base_picker.set_image(loadImage("base.png"));
+  //now load up all the images in the data folder
+  File dir = new File(dataPath(""));
+  float max_choice_x = 80f;
   
-  for (int i = 0; i < bucket_pickers.length; ++i)
+  for (File f : dir.listFiles())
   {
-    PGraphics g = createGraphics(image_size, image_size);
+    if (f.getAbsolutePath().toLowerCase().endsWith(".png"))
+    {
+      PImage p = loadImage(f.getAbsolutePath());
+      
+      if (p != null)
+      {
+        int starting_y_pos_for_choices = 80;
+        int onepointfive_tile_size = 3 * tile_size / 2;
+        
+        //first determine the position
+        PVector np = new PVector(16f, starting_y_pos_for_choices + choice_tiles.size() * onepointfive_tile_size);
+        
+        while (np.y + tile_size >= height)
+        {
+          np.y -= height - starting_y_pos_for_choices;
+          np.x += onepointfive_tile_size;
+        }
+        
+        ImageTile it = new ImageTile(new PVector(16f, 80 + choice_tiles.size() * 48), new PVector(tile_size, tile_size));
+        it.set_image(p);
+        
+        choice_tiles.add(it);
+      
+        max_choice_x = np.x;
+      }
+    }
+  }
+  
+  
+  //initialize the base_tile
+  base_tile = new ImageTile(new PVector(16f, 16f), new PVector(tile_size,tile_size));
+  base_tile.set_image(loadImage("data/base.png"));
+  
+  
+  //initialize the bucket_tiles
+  bucket_tiles = new ImageTile[8];
+  for (int i = 0; i < bucket_tiles.length; ++i)
+     bucket_tiles[i] = new ImageTile(new PVector(2 * tile_size + max_choice_x, 80 + i * 48), new PVector(tile_size,tile_size));
+  
+  //now create the default bucket_tiles from scratch
+  for (int i = 0; i < bucket_tiles.length; ++i)
+  {
+    //create a tile from scratch
+    PGraphics g = createGraphics(tile_size, tile_size);
     g.beginDraw();
     
+    //border with gradually brighter background
     g.stroke(0);
     g.strokeWeight(1);
     g.fill(90 + i * 20);
-    g.rect(0,0, image_size, image_size);
+    g.rect(0,0, tile_size, tile_size);
     
+    //text with the number
     g.fill(0);
-    g.textSize(3 * image_size / 4);
+    g.textSize(3 * tile_size / 4);
     g.textAlign(CENTER,CENTER);
-    g.text("" + i, image_size / 2, image_size / 2);
+    g.text("" + i, tile_size / 2, tile_size / 2);
     
     g.endDraw();
     
-    bucket_pickers[i].set_image(g);
+    //put the from-scratch image into the bucket as a default. Users will replace it later with their own.
+    bucket_tiles[i].set_image(g);
   }
 }
 
@@ -60,18 +110,16 @@ void setup_pickers()
 void create_output()
 {
   //now that we have our image, determine how many "pixels" our blown-up image will have
-  int pix = min(height/image_size, width/image_size);
+  int pix = min(height/tile_size, width/tile_size);
   
   //now create a copy of the image and shrink it to that many pixels
-  PImage ref = base_picker.get_image().copy();
+  PImage ref = base_tile.get_image().copy();
   ref.resize(pix,pix);
   
   //create a fresh canvas to draw on
-  output = createImage(pix * image_size, pix * image_size, ARGB);
-  output.loadPixels();
-  for (int i = 0; i < output.pixels.length; ++i)
-    output.pixels[i] = color(200);
-  output.updatePixels();
+  PGraphics og = createGraphics(pix * tile_size, pix * tile_size);
+  og.beginDraw();
+  og.background(200);
   
   //find the min and max brightness scores
   float min_val = Float.MAX_VALUE;
@@ -107,10 +155,14 @@ void create_output()
         int bucket = bucketize_brightness(r, min_val, max_val);
         
         //copy that bucket's image into the output image
-        output.copy(bucket_pickers[bucket].get_image(), 0,0,image_size,image_size,x * image_size, y * image_size, image_size, image_size);
+        og.image(bucket_tiles[bucket].get_image(), x * tile_size, y * tile_size);
       }
     }
   }
+  
+  og.endDraw();
+  
+  output = og;
 }
 
 int bucketize_brightness(color c, float min, float max)
@@ -129,75 +181,31 @@ void keyReleased()
     output.save("output.png");
 }
 
+void mousePressed()
+{
+  PVector m = new PVector(mouseX, mouseY);
+  
+  base_tile.mousePressed(m);
+  
+  for (ImageTile i : bucket_tiles)
+    i.mousePressed(m);
+  
+  for (ImageTile i : choice_tiles)
+    i.mousePressed(m);
+}
+
 void mouseReleased()
 {
   PVector m = new PVector(mouseX, mouseY);
-  if (!base_picker.handle_mouse_event(m))
-    for (int i = 0; i < bucket_pickers.length && !bucket_pickers[i].handle_mouse_event(m); ++i);
   
-  //recreate the output image anytime we click
+  base_tile.mouseReleased(m);
+  
+  for (ImageTile i : bucket_tiles)
+    i.mouseReleased(m);
+  
+  for (ImageTile i : choice_tiles)
+    i.mouseReleased(m);
+  
+  //recreate the output image anytime we release the mouse button
   create_output();
-}
-
-public class ImagePicker
-{
-  private PVector pos;
-  private PVector dim;
-  
-  private PImage my_image;
-  
-  ImagePicker(PVector pos, PVector dim)
-  {
-    this.pos = new PVector(pos.x, pos.y);
-    this.dim = new PVector(dim.x, dim.y);
-    
-    my_image = createImage(image_size, image_size, ARGB);
-  }
-  
-  void set_image(PImage new_image)
-  {
-    if (new_image != null)
-    {
-      my_image = new_image;
-      
-      if (my_image.width != image_size || my_image.height != image_size)
-        my_image.resize(image_size, image_size);
-    }
-  }
-  
-  PImage get_image()
-  {
-    return my_image;
-  }
-  
-  void draw()
-  {
-    image(my_image, pos.x, pos.y);
-    
-    stroke(0);
-    strokeWeight(1);
-    noFill();
-    rect(pos.x, pos.y, dim.x, dim.y);
-  }
-  
-  boolean handle_mouse_event(PVector mouse_pos)
-  {
-    if (mouse_pos.x < pos.x || mouse_pos.x >= pos.x + dim.x || mouse_pos.y < pos.y || mouse_pos.y >= pos.y + dim.y) //<>//
-      return false;
-    
-    selectInput("Select a PNG", "file_picked",null,this);
-    
-    return true;
-  }
-  
-  public void file_picked(File f)
-  {
-    if (f != null)
-    {
-      set_image(loadImage(f.getAbsolutePath()));
-      
-      //recreate the big image (since this is called asychronously this can't just be put in the mouseReleased event)
-      create_output();
-    }
-  }
-}
+} //<>//
